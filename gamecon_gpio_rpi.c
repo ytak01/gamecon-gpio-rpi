@@ -629,14 +629,14 @@ static void gc_nes_process_packet(struct gc *gc)
 #define GC_PSX_ANALOG	5		/* Analog in Analog mode / Rumble in Green mode */
 #define GC_PSX_RUMBLE	7		/* Rumble in Red mode */
 
-#define GC_PSX_COMMAND_PIN	12	/* Pin 12 */
-#define GC_PSX_SELECT_PIN	17	/* Pin 17 */
+static int gc_psx_com_pin = 16;	/* Pin 16 */
+static int gc_psx_sel_pin = 17;	/* Pin 17 */
 
 #define GC_GPIO(g) (((g)%10)*3)
 
 #define GC_PSX_CLOCK	(1<<18)		/* Pin 18 */
-#define GC_PSX_COMMAND	(1<<GC_PSX_COMMAND_PIN)
-#define GC_PSX_SELECT	(1<<GC_PSX_SELECT_PIN)
+#define GC_PSX_COMMAND	(1<<gc_psx_com_pin)
+#define GC_PSX_SELECT	(1<<gc_psx_sel_pin)
 
 #define GC_PSX_ID(x)	((x) >> 4)	/* High nibble is device type */
 #define GC_PSX_LEN(x)	(((x) & 0xf) << 1)	/* Low nibble is length in bytes/2 */
@@ -644,6 +644,12 @@ static void gc_nes_process_packet(struct gc *gc)
 static int gc_psx_delay = GC_PSX_DELAY;
 module_param_named(psx_delay, gc_psx_delay, uint, 0);
 MODULE_PARM_DESC(psx_delay, "Delay when accessing Sony PSX controller (usecs)");
+
+module_param_named(psx_com_pin, gc_psx_com_pin, uint, 0);
+MODULE_PARM_DESC(psx_com_pin, "Sony PSX controller use CMD Pin No(default:16)");
+
+module_param_named(psx_sel_pin, gc_psx_sel_pin, uint, 0);
+MODULE_PARM_DESC(psx_sel_pin, "Sony PSX controller use SEL Pin No(default:17)");
 
 static const short gc_psx_abs[] = {
 	ABS_HAT0X, ABS_HAT0Y, ABS_RX, ABS_RY, ABS_X, ABS_Y
@@ -1161,8 +1167,11 @@ static struct gc __init *gc_probe(int *pads, int n_pads)
 		 *(gpio+1) &= ~((7<<12) | (7<<15) | (7<<24));
 		 *(gpio+1) |=  ((1<<12) | (1<<15) | (1<<24));
 		*/
-		*(gpio+1) &= ~((7<<GC_GPIO(GC_PSX_COMMAND_PIN)) | (7<<GC_GPIO(GC_PSX_SELECT_PIN)) | (7<<24));
-		*(gpio+1) |=  ((1<<GC_GPIO(GC_PSX_COMMAND_PIN)) | (1<<GC_GPIO(GC_PSX_SELECT_PIN)) | (1<<24));
+		*(gpio+1) &= ~((7<<GC_GPIO(gc_psx_com_pin)) | (7<<GC_GPIO(gc_psx_sel_pin)) | (7<<24));
+		*(gpio+1) |=  ((1<<GC_GPIO(gc_psx_com_pin)) | (1<<GC_GPIO(gc_psx_sel_pin)) | (1<<24));
+
+		printk("GPIO%d configured for %s com pin\n", gc_psx_com_pin, gc_names[GC_PSX]);
+		printk("GPIO%d configured for %s sel pin\n", gc_psx_sel_pin, gc_names[GC_PSX]);
 	}
 
 	return gc;
@@ -1206,6 +1215,12 @@ static int __init gc_init(void)
 		return -EINVAL;
 	} else if ((gc_psx_delay < 1) || (gc_psx_delay > 50)) {
 		pr_err("Invalid psx_delay (1-50 allowed)\n");
+		return -EINVAL;
+	} else if ((gc_psx_com_pin < 10) || (gc_psx_com_pin > 19)) {
+		pr_err("Invalid psx_cmd_pin (10-19 allowed)\n");
+		return -EINVAL;
+	} else if ((gc_psx_sel_pin < 10) || (gc_psx_sel_pin > 19)) {
+		pr_err("Invalid psx_sel_pin (10-19 allowed)\n");
 		return -EINVAL;
 	} else {
 		gc_base = gc_probe(gc_cfg.args, gc_cfg.nargs);
